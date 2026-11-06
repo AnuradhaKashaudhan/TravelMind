@@ -17,7 +17,9 @@ provides local infrastructure.
 - `backend/app/tools/` and `backend/app/llm/`: integrations and model clients
   (Phase 3).
 - `backend/app/models/` and `backend/app/schemas/`: persistence models and
-  validated data contracts (Phase 2).
+  validated data contracts.
+- `backend/app/db/repositories/`: async persistence access; keep transaction
+  boundaries with the caller and avoid domain/business workflows here.
 - `backend/app/services/`: application use cases and domain coordination.
 - `backend/app/core/`: configuration, structured logging, exceptions, and
   security primitives.
@@ -38,5 +40,11 @@ provides local infrastructure.
 - Bound retries with explicit limits and backoff; never retry indefinitely.
 - Add tests for every module and meaningful behavior change.
 - Keep dependencies, configuration, and migrations explicit and reproducible.
+- Use UUID primary keys and timezone-aware shared timestamps for persisted
+  entities; model relationships with explicit foreign-key `ondelete` behavior.
+- Store structured PostgreSQL data as JSONB and vector embeddings with pgvector;
+  include indexes and reversible Alembic migrations for schema changes.
+- Keep Pydantic API schemas distinct from SQLAlchemy models, and define agent
+  inputs/outputs as validated Pydantic contracts.
 - Booking and payment actions must always require explicit user approval before
   execution. No agent or automation may bypass this requirement.

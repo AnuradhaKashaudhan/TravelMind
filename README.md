@@ -1,8 +1,8 @@
 # TravelMind
 
 TravelMind is an autonomous multi-agent AI travel-planning platform. This
-repository is being built in ten phases; Phase 1 establishes the backend
-foundation and local development infrastructure only.
+repository is being built in ten phases; Phase 1 established the backend
+foundation and Phase 2 defines its data layer.
 
 ## Architecture
 
@@ -40,10 +40,13 @@ flowchart LR
    docker compose exec backend alembic upgrade head
    ```
 
-4. Run the backend tests:
+4. Start the isolated PostgreSQL/pgvector test database and run the backend
+   tests against it:
 
    ```powershell
-   docker compose exec backend pytest
+   docker compose --profile test up -d postgres-test
+   $env:TEST_DATABASE_URL = "postgresql+asyncpg://travelmind:travelmind@localhost:5433/travelmind_test"
+   docker compose run --build --rm --no-deps -e TEST_DATABASE_URL="postgresql+asyncpg://travelmind:travelmind@postgres-test:5432/travelmind_test" backend pytest
    ```
 
 5. Check the API:
@@ -53,13 +56,20 @@ flowchart LR
    Invoke-RestMethod http://localhost:8000/version
    ```
 
+5. To run migrations through the full reversible cycle:
+
+   ```powershell
+   docker compose exec backend alembic downgrade -1
+   docker compose exec backend alembic upgrade head
+   ```
+
 Use `make up`, `make down`, `make logs`, `make migrate`, `make test`,
 `make lint`, and `make format` where GNU Make is available.
 
 ## Phase checklist
 
-- [ ] Phase 1 — Project Foundation (in progress)
-- [ ] Phase 2 — Data models and schemas
+- [x] Phase 1 — Project Foundation
+- [ ] Phase 2 — Data models and schemas (in progress)
 - [ ] Phase 3 — Integrations and tools
 - [ ] Phase 4 — Agent orchestration
 - [ ] Phase 5 — Agents

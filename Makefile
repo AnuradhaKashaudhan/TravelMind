@@ -13,7 +13,8 @@ migrate:
 	docker compose exec backend alembic upgrade head
 
 test:
-	docker compose exec backend pytest
+	docker compose --profile test up -d postgres-test
+	docker compose run --build --rm --no-deps -e TEST_DATABASE_URL=postgresql+asyncpg://travelmind:travelmind@postgres-test:5432/travelmind_test backend pytest
 
 lint:
 	docker compose exec backend ruff check .
