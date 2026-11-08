@@ -1,0 +1,9 @@
+{
+  "routes": [
+    {
+      "distanceMeters": 41100,
+      "duration": "3960s",
+      "polyline": {"encodedPolyline": "u~btA_fake_polyline"}
+    }
+  ]
+}

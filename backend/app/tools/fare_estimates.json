@@ -1,0 +1,38 @@
+{
+  "currency": "INR",
+  "source": "configured_heuristic",
+  "modes": {
+    "taxi": {
+      "minimum_fare": 80,
+      "base_fare": 50,
+      "min_per_km": 12,
+      "max_per_km": 24,
+      "speed_kmh": 25,
+      "duration_buffer_s": 300
+    },
+    "public_transport": {
+      "minimum_fare": 10,
+      "base_fare": 10,
+      "min_per_km": 1,
+      "max_per_km": 4,
+      "speed_kmh": 22,
+      "duration_buffer_s": 600
+    },
+    "flight": {
+      "minimum_fare": 2500,
+      "base_fare": 1500,
+      "min_per_km": 3,
+      "max_per_km": 8,
+      "speed_kmh": 700,
+      "duration_buffer_s": 7200
+    },
+    "train": {
+      "minimum_fare": 50,
+      "base_fare": 30,
+      "min_per_km": 0.5,
+      "max_per_km": 3,
+      "speed_kmh": 55,
+      "duration_buffer_s": 900
+    }
+  }
+}

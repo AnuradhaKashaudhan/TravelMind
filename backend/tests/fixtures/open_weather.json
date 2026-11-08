@@ -1,0 +1,12 @@
+{
+  "list": [
+    {
+      "dt": 1794186000,
+      "main": {"temp_min": 2.0, "temp_max": 8.0},
+      "weather": [{"id": 800}],
+      "wind": {"speed": 2.0},
+      "pop": 0.25,
+      "rain": {"3h": 1.5}
+    }
+  ]
+}

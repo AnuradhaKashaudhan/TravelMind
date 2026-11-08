@@ -1,0 +1,19 @@
+{
+  "places": [
+    {
+      "id": "ChIJfake001",
+      "displayName": {"text": "Himalayan Cafe"},
+      "formattedAddress": "Mall Road, Manali, Himachal Pradesh",
+      "location": {"latitude": 32.2396, "longitude": 77.1887},
+      "rating": 4.4,
+      "userRatingCount": 318,
+      "priceLevel": "PRICE_LEVEL_MODERATE",
+      "regularOpeningHours": {
+        "weekdayDescriptions": ["Monday: 9:00 AM – 9:00 PM"]
+      },
+      "types": ["restaurant", "food"],
+      "websiteUri": "https://example.test/",
+      "businessStatus": "OPERATIONAL"
+    }
+  ]
+}

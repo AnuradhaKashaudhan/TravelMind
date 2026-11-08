@@ -1,0 +1,13 @@
+{
+  "status": "OK",
+  "results": [
+    {
+      "formatted_address": "Manali, Himachal Pradesh, India",
+      "geometry": {
+        "location": {"lat": 32.2396, "lng": 77.1887}
+      },
+      "place_id": "ChIJmanali",
+      "types": ["locality", "political"]
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+Summarize the travel request using only the supplied information.
+
+Destination: {destination}
+Travel dates: {start_date} to {end_date}
+Traveler preferences: {preferences}

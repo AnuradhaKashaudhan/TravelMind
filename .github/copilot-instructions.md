@@ -48,3 +48,23 @@ provides local infrastructure.
   inputs/outputs as validated Pydantic contracts.
 - Booking and payment actions must always require explicit user approval before
   execution. No agent or automation may bypass this requirement.
+
+## Phase 3 LLM and tool conventions
+
+- Route model calls through `app.llm.router.LLMRouter`; provider integrations
+  implement `app.llm.base.LLMClient` and must not leak SDK-specific response
+  objects into application code.
+- Parse generated structured output into the requested Pydantic model. The
+  shared structured-output path allows no more than two repair attempts.
+  Embeddings must remain exactly 768 dimensions to match `Vector(768)`.
+- Add external integrations as typed `Tool` subclasses with explicit Pydantic
+  input and output models. Parse every provider response before returning it;
+  never return provider dictionaries or log credentials/request secrets.
+- Tool retries are bounded and apply only to timeouts, HTTP 429, and HTTP 5xx.
+  Keep per-provider rate limiting, circuit breakers, cache TTLs, and tool
+  timeouts configurable. Cache only normalized Pydantic results.
+- Mark heuristic or simulated transport prices as estimates and include their
+  source. Booking and payment remain outside this phase and always require
+  explicit user approval.
+- Keep Phase 3 integrations independent of agents and orchestration. Do not add
+  LangGraph workflows (Phase 4) or agent implementations (Phase 5) here.

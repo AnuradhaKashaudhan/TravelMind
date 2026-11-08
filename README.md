@@ -1,8 +1,8 @@
 # TravelMind
 
 TravelMind is an autonomous multi-agent AI travel-planning platform. This
-repository is being built in ten phases; Phase 1 established the backend
-foundation and Phase 2 defines its data layer.
+repository is being built in ten phases; Phases 1 and 2 are complete, and
+Phase 3 (LLM, external tool, and caching integrations) is in progress.
 
 ## Architecture
 
@@ -15,7 +15,7 @@ flowchart LR
     API --> Redis[(Redis)]
     Services --> Workflow[LangGraph orchestration<br/>Phase 4]
     Workflow --> Agents[Travel agents<br/>Phase 5]
-    Agents --> Integrations[Tools and LLM integrations<br/>Phases 3 and 5]
+    Agents --> Integrations[Tools and LLM integrations<br/>Phase 3]
     Integrations --> Providers[Gemini, OpenAI-compatible,<br/>maps, weather]
 ```
 
@@ -66,11 +66,42 @@ flowchart LR
 Use `make up`, `make down`, `make logs`, `make migrate`, `make test`,
 `make lint`, and `make format` where GNU Make is available.
 
+## Phase 3 integrations
+
+- LLM calls go through `app.llm.router.LLMRouter`; Gemini and configurable
+  OpenAI-compatible endpoints implement the same async interface. Set
+  `LLM_PROVIDER`, optional `FALLBACK_LLM_PROVIDER`, provider credentials, and
+  optional `SIMPLE_MODEL`, `SUPERVISOR_MODEL`, and `ITINERARY_MODEL` overrides.
+- Embeddings are validated at 768 dimensions to match the pgvector columns.
+  Structured responses use Pydantic validation and at most two repair attempts.
+- External integrations are typed `Tool` implementations. Google Maps tools
+  use `GOOGLE_MAPS_API_KEY`; weather uses Open-Meteo without a key and can use
+  OpenWeatherMap when `WEATHER_API_KEY` is configured. Fares are labeled
+  estimates and configured in `backend/app/tools/fare_estimates.json`.
+- Redis caches use provider-specific TTL settings. Transient errors are retried
+  with bounded backoff; API keys are never included in log fields.
+- Set `USE_FAKE_PROVIDERS=true` to select no-network LLM and tool fakes for
+  local development. Fake travel outputs are placeholders, not live data.
+
+Run unit tests, lint, and type checking from `backend`:
+
+```powershell
+python -m pytest
+ruff check app tests scripts
+mypy app
+python scripts/smoke_tools.py
+```
+
+The smoke script uses configured live providers by default. To run it against
+real services, set `GEMINI_API_KEY`, `GOOGLE_MAPS_API_KEY`, and optionally
+`WEATHER_API_KEY` in `.env`, then run `python scripts/smoke_tools.py`. For
+no-network behavior, set `USE_FAKE_PROVIDERS=true`.
+
 ## Phase checklist
 
 - [x] Phase 1 — Project Foundation
-- [ ] Phase 2 — Data models and schemas (in progress)
-- [ ] Phase 3 — Integrations and tools
+- [x] Phase 2 — Data models and schemas
+- [ ] Phase 3 — LLM abstraction, external tools, caching (in progress)
 - [ ] Phase 4 — Agent orchestration
 - [ ] Phase 5 — Agents
 - [ ] Phase 6 — Planning workflows
