@@ -3,8 +3,8 @@
 ## Architecture
 
 TravelMind is an async-first travel-planning platform. The backend uses FastAPI,
-Pydantic v2, SQLAlchemy 2.0 async, PostgreSQL with pgvector, and Redis. Agent
-orchestration is reserved for LangGraph in Phase 4; agents are added in Phase 5.
+Pydantic v2, SQLAlchemy 2.0 async, PostgreSQL with pgvector, and Redis. LangGraph
+orchestration is implemented in Phase 4; specialist agents are added in Phase 5.
 Gemini and OpenAI-compatible model integrations are planned for Phase 3. The
 Next.js/React/TypeScript/Tailwind frontend is scaffolded in Phase 9. Docker Compose
 provides local infrastructure.
@@ -66,5 +66,38 @@ provides local infrastructure.
 - Mark heuristic or simulated transport prices as estimates and include their
   source. Booking and payment remain outside this phase and always require
   explicit user approval.
-- Keep Phase 3 integrations independent of agents and orchestration. Do not add
-  LangGraph workflows (Phase 4) or agent implementations (Phase 5) here.
+- Keep Phase 3 integrations independent of specialist agent implementations.
+
+## Phase 4 orchestration conventions
+
+- Keep graph state and task/result contracts typed and checkpoint-serializable.
+  Parallel state updates must use explicit merge reducers.
+- Validate supervisor task keys, dependencies, and cycles before execution.
+  Agent implementations are registered by stable name; plans may reference
+  only registered agents.
+- Execute independent ready tasks concurrently with a bounded semaphore.
+  Retry only transient failures, with configured timeouts and bounded jittered
+  backoff; a failed task must not restart the entire run.
+- Persist each task transition and result through repositories using a
+  service-owned transaction. Never share an `AsyncSession` between concurrent
+  tasks.
+- Use the graph checkpointer for interrupt/resume and reconcile persisted
+  successful tasks before retrying work after a crash.
+- Booking/payment tasks must enter the approval gate and remain unexecuted until
+  an explicit approval is recorded. Keep event publication transport-neutral;
+  WebSocket delivery belongs to Phase 7.
+- Tests and demos use `FakeLLMClient` and registered stub agents. Do not add
+  real specialist agents, API routes, WebSockets, or memory/replanning logic
+  before their designated phases.
+
+## Phase 5 specialist research conventions
+
+- Destination, transport, accommodation, weather, activity, and local
+  intelligence agents use typed Pydantic output and `ResearchAgent`.
+- Never present an LLM-proposed place as real until Places grounding resolves
+  and verifies it. Provider unavailability must produce `verified=false` with a
+  clear note, not a hallucinated place.
+- Transport and accommodation prices are estimates and must carry
+  `is_estimate=true` plus a source; they are not live fares.
+- Tool or LLM failures degrade to a valid `AgentResult` with errors and
+  confidence/source metadata so the executor can persist and recover them.

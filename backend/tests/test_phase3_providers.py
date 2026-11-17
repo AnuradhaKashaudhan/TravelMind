@@ -76,9 +76,9 @@ async def test_openai_compatible_chat_json_mode_embedding_and_stream() -> None:
     )
     assert response.text == '{"ok": true}'
     assert response.usage.total_tokens == 5
-    assert [chunk async for chunk in client.stream(
-        [{"role": "user", "content": "hello"}]
-    )] == ["hello"]
+    assert [
+        chunk async for chunk in client.stream([{"role": "user", "content": "hello"}])
+    ] == ["hello"]
     vectors = await client.embed(["first", "second"])
     assert len(vectors) == 2
     assert len(vectors[0]) == 768

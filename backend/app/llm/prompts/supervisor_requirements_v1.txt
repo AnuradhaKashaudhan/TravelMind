@@ -1,0 +1,4 @@
+Extract the traveler's requirements from the request as one JSON object matching
+TripRequirements. Use null for unknown values. Do not invent dates, destinations,
+traveler counts, or budgets. Put any information that must be clarified in
+missing_fields. Dates must use ISO YYYY-MM-DD format.

@@ -26,6 +26,8 @@ from app.core.resilience import (
     CircuitBreaker,
     retry_async,
 )
+from app.models.enums import ApprovalActionType
+from app.tools.approval import require_tool_approval
 
 InputT = TypeVar("InputT", bound=BaseModel)
 OutputT = TypeVar("OutputT", bound=BaseModel)
@@ -41,6 +43,12 @@ def _cache() -> RedisCache:
     if _shared_cache is None:
         _shared_cache = RedisCache.from_settings()
     return _shared_cache
+
+
+def configure_shared_tool_cache(cache: RedisCache) -> None:
+    """Inject the application-owned cache before constructing tool instances."""
+    global _shared_cache
+    _shared_cache = cache
 
 
 def _limiter(provider: str) -> AsyncRateLimiter:
@@ -73,6 +81,7 @@ class Tool(ABC, Generic[InputT, OutputT]):
     input_schema: type[InputT]
     output_schema: type[OutputT]
     provider: str
+    approval_action: ApprovalActionType | None = None
 
     def __init__(
         self,
@@ -108,6 +117,12 @@ class Tool(ABC, Generic[InputT, OutputT]):
                 request = self.input_schema.model_validate(payload)
             except ValidationError as error:
                 raise ValidationFailure("Invalid tool input") from error
+            if self.approval_action is not None:
+                await require_tool_approval(
+                    self.approval_action,
+                    self.name,
+                    request.model_dump(mode="json"),
+                )
             cache_key = request.model_dump_json()
             if self.cache_ttl_s > 0:
                 cached_value = await self.cache.get(
@@ -204,6 +219,15 @@ class Tool(ABC, Generic[InputT, OutputT]):
                 cache_hit=cache_hit,
                 status=tool_status,
             )
+
+    async def aclose(self) -> None:
+        """Close provider resources owned by this tool, excluding shared cache."""
+        closed: set[int] = set()
+        for resource in vars(self).values():
+            close = getattr(resource, "aclose", None)
+            if close is not None and id(resource) not in closed:
+                await close()
+                closed.add(id(resource))
 
     async def _execute(self, payload: InputT) -> OutputT:
         """Apply rate limiting, timeout, breaker, and transient-only retries."""

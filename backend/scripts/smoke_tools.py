@@ -11,10 +11,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from pydantic import BaseModel
 
+import app  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
 from app.core.exceptions import TravelMindError  # noqa: E402
 from app.tools.registry import ToolRegistry, build_default_tool_registry  # noqa: E402
 from app.tools.schemas import GeocodeOutput, PlaceSearchOutput, RouteOutput  # noqa: E402
+
+if Path("/app").is_dir():
+    assert app.__file__ is not None and app.__file__.startswith("/app/app")
 
 
 async def _run_smoke_tests(registry: ToolRegistry) -> int:
@@ -97,6 +101,12 @@ async def _run_smoke_tests(registry: ToolRegistry) -> int:
 def main() -> int:
     """Load configured providers and return a process status."""
     settings = get_settings()
+    if (
+        settings.google_maps_api_key is None
+        or not settings.google_maps_api_key.get_secret_value()
+    ):
+        settings = settings.model_copy(update={"use_fake_providers": True})
+        print("Google Maps key unavailable; using fake providers.")
     registry = build_default_tool_registry(settings)
     if settings.use_fake_providers:
         print("Using fake providers; results are placeholders.")

@@ -19,6 +19,19 @@ if config.config_file_name is not None:
 
 config.set_main_option("sqlalchemy.url", get_settings().db_url.replace("%", "%%"))
 target_metadata = Base.metadata
+CHECKPOINT_TABLES: frozenset[str] = frozenset(
+    {
+        "checkpoint_blobs",
+        "checkpoint_migrations",
+        "checkpoint_writes",
+        "checkpoints",
+    }
+)
+
+
+def include_name(name: str | None, type_: str, parent_names: dict[str, str]) -> bool:
+    """Keep LangGraph-owned checkpoint tables outside application migrations."""
+    return not (type_ == "table" and name in CHECKPOINT_TABLES)
 
 
 def run_migrations_offline() -> None:
@@ -40,6 +53,7 @@ def do_run_migrations(connection: Connection) -> None:
         connection=connection,
         target_metadata=target_metadata,
         compare_type=True,
+        include_name=include_name,
     )
     with context.begin_transaction():
         context.run_migrations()

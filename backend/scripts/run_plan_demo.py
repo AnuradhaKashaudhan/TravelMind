@@ -4,13 +4,18 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sys
 from datetime import datetime
+from pathlib import Path
 from typing import cast
 from uuid import uuid4
 
 from langgraph.checkpoint.memory import InMemorySaver
 from pydantic import BaseModel
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+import app  # noqa: E402
 from app.core.config import Settings
 from app.llm.fake import FakeLLMClient
 from app.llm.router import LLMRouter
@@ -24,6 +29,9 @@ from app.orchestration.supervisor import SupervisorAgent
 from app.orchestration.testing import StubAgent
 from app.schemas.agent_io import AgentResult, TripRequirements
 from app.tools.registry import ToolRegistry
+
+if Path("/app").is_dir():
+    assert app.__file__ is not None and app.__file__.startswith("/app/app")
 
 
 class DelayedStubAgent(StubAgent):
@@ -122,8 +130,7 @@ async def run_demo() -> None:
             event.timestamp - run_started_event.timestamp
         ).total_seconds() * 1000
         print(
-            f"{offset_ms:7.1f} ms  {event.event_type.value:<18} "
-            f"{event.task_key or '-'}"
+            f"{offset_ms:7.1f} ms  {event.event_type.value:<18} {event.task_key or '-'}"
         )
     _print_parallelism_summary(result, wall_clock_s)
     print("FINAL STATE")
@@ -139,18 +146,12 @@ def _print_parallelism_summary(result: PlanningState, wall_clock_s: float) -> No
         for second_key in independent_tasks[index + 1 :]:
             first = task_states[first_key]
             second = task_states[second_key]
-            print(
-                f"{first_key} + {second_key}: "
-                f"{_intervals_overlap(first, second)}"
-            )
+            print(f"{first_key} + {second_key}: {_intervals_overlap(first, second)}")
     durations = [
         _duration_seconds(task_states[task_key])
         for task_key in (*independent_tasks, "itinerary")
     ]
-    print(
-        f"wall-clock: {wall_clock_s:.3f}s; "
-        f"sum task durations: {sum(durations):.3f}s"
-    )
+    print(f"wall-clock: {wall_clock_s:.3f}s; sum task durations: {sum(durations):.3f}s")
 
 
 def _intervals_overlap(

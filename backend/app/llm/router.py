@@ -81,6 +81,19 @@ class LLMRouter(LLMClient):
         configured = getattr(self.settings, f"{role}_model")
         return configured or None
 
+    def role_for_agent(self, agent_name: str) -> str:
+        """Resolve the configured model role for an agent name."""
+        return self.settings.model_role_for_agent(agent_name)
+
+    async def aclose(self) -> None:
+        """Close each provider client that exposes an async close operation."""
+        closed: set[int] = set()
+        for client in self.clients.values():
+            close = getattr(client, "aclose", None)
+            if close is not None and id(client) not in closed:
+                await close()
+                closed.add(id(client))
+
     async def generate(
         self,
         messages: Sequence[Message],
@@ -155,6 +168,24 @@ class LLMRouter(LLMClient):
             role=role,
         )
 
+    async def generate_for_agent(
+        self,
+        agent_name: str,
+        messages: Sequence[Message],
+        *,
+        temperature: float = 0.2,
+        max_tokens: int = 2048,
+        timeout: float | None = None,
+    ) -> LLMResponse:
+        """Generate using the model role configured for an agent."""
+        return await self.generate_for_role(
+            self.role_for_agent(agent_name),
+            messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            timeout=timeout,
+        )
+
     async def generate_structured(
         self,
         messages: Sequence[Message],
@@ -219,6 +250,28 @@ class LLMRouter(LLMClient):
         raise ValueError(
             f"Could not produce valid {schema.__name__} after {max_repairs} repairs"
         ) from last_error
+
+    async def generate_structured_for_agent(
+        self,
+        agent_name: str,
+        messages: Sequence[Message],
+        schema: type[ModelT],
+        *,
+        temperature: float = 0.0,
+        max_tokens: int = 2048,
+        timeout: float | None = None,
+        max_repairs: int = 2,
+    ) -> ModelT:
+        """Generate validated structured output using an agent's model role."""
+        return await self.generate_structured(
+            messages,
+            schema,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            timeout=timeout,
+            max_repairs=max_repairs,
+            role=self.role_for_agent(agent_name),
+        )
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         """Embed using primary, then fallback provider on failure."""

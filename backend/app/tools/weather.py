@@ -204,9 +204,7 @@ class WeatherTool(Tool[ForecastInput, ForecastOutput]):
                     temp_min_c=min(item.main.temp_min for item in entries),
                     temp_max_c=max(item.main.temp_max for item in entries),
                     precipitation_probability=max(item.pop for item in entries) * 100,
-                    precipitation_mm=max(
-                        item.rain.three_hour_mm for item in entries
-                    ),
+                    precipitation_mm=max(item.rain.three_hour_mm for item in entries),
                     wind_speed_kmh=max(item.wind.speed * 3.6 for item in entries),
                     condition_code=weather.id if weather else 0,
                 )

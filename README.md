@@ -1,8 +1,9 @@
 # TravelMind
 
 TravelMind is an autonomous multi-agent AI travel-planning platform. This
-repository is being built in ten phases; Phases 1 and 2 are complete, and
-Phase 3 (LLM, external tool, and caching integrations) is in progress.
+repository is being built in ten phases; Phases 1-3 are complete, and
+Phase 4 (LangGraph orchestration core) is complete, and Phase 5 specialist
+research agents are in progress.
 
 ## Architecture
 
@@ -83,6 +84,41 @@ Use `make up`, `make down`, `make logs`, `make migrate`, `make test`,
 - Set `USE_FAKE_PROVIDERS=true` to select no-network LLM and tool fakes for
   local development. Fake travel outputs are placeholders, not live data.
 
+## Phase 4 orchestration
+
+- `app.orchestration` extracts typed requirements, pauses for missing trip
+  details, validates supervisor task graphs, and executes independent tasks
+  concurrently while respecting dependencies.
+- The six Phase 5 specialists are registered through `AgentRegistry`; Phase 6
+  budget, itinerary, and validation agents are intentionally not included yet.
+- Graph checkpoints use `AsyncPostgresSaver` on the configured PostgreSQL
+  database. Task transitions and successful results are also persisted, so
+  resumed work reconciles completed tasks instead of re-running them.
+- LangGraph owns its checkpoint tables; Alembic excludes those tables from the
+  application schema comparison and migrations.
+- Booking and payment tasks pause at an explicit approval gate. A task cannot
+  execute before its pending approval request is approved.
+- Configure per-agent model roles with the `AGENT_MODEL_ROLES` JSON environment
+  variable. Unknown agents use the `simple` model role.
+
+## Phase 5 research agents
+
+- Destination, transport, accommodation, weather, activity, and local
+  intelligence research run through typed `ResearchAgent` implementations.
+- Place suggestions must pass Places grounding before being presented as real.
+  When Places is unavailable, items remain explicitly `verified=false`.
+- Transport and lodging prices are estimates with a source and `is_estimate=true`;
+  they are never presented as live fares.
+- Tool and LLM failures degrade to valid typed `AgentResult` envelopes and are
+  recorded for orchestration recovery. All default tests use fake providers.
+
+Run the isolated tests and no-network orchestration demo with:
+
+```powershell
+make test
+docker compose exec backend python scripts/run_plan_demo.py
+```
+
 Run unit tests, lint, and type checking from `backend`:
 
 ```powershell
@@ -101,9 +137,9 @@ no-network behavior, set `USE_FAKE_PROVIDERS=true`.
 
 - [x] Phase 1 — Project Foundation
 - [x] Phase 2 — Data models and schemas
-- [ ] Phase 3 — LLM abstraction, external tools, caching (in progress)
-- [ ] Phase 4 — Agent orchestration
-- [ ] Phase 5 — Agents
+- [x] Phase 3 — LLM abstraction, external tools, caching
+- [x] Phase 4 — Agent orchestration
+- [ ] Phase 5 — Agents (in progress)
 - [ ] Phase 6 — Planning workflows
 - [ ] Phase 7 — API capabilities
 - [ ] Phase 8 — Reliability and observability

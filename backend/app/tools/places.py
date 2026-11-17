@@ -59,9 +59,7 @@ class _GooglePlace(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: str
-    display_name: _GoogleDisplayName | None = Field(
-        default=None, alias="displayName"
-    )
+    display_name: _GoogleDisplayName | None = Field(default=None, alias="displayName")
     formatted_address: str | None = Field(default=None, alias="formattedAddress")
     location: _GoogleLocation | None = None
     rating: float | None = None

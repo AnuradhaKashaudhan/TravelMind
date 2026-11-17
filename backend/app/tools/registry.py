@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.core.cache import RedisCache
 from app.core.config import Settings, get_settings
-from app.tools.base import Tool
+from app.tools.base import Tool, configure_shared_tool_cache
 from app.tools.geocoding import GeocodeTool, ReverseGeocodeTool
 from app.tools.places import (
     NearbySearchTool,
@@ -70,12 +71,21 @@ class ToolRegistry:
         """Return registered names in registration order."""
         return list(self._tools)
 
+    async def aclose(self) -> None:
+        """Close tool-owned provider clients without closing the shared Redis cache."""
+        for tool in self._tools.values():
+            await tool.aclose()
+
 
 def build_default_tool_registry(
     settings: Settings | None = None,
+    *,
+    cache: RedisCache | None = None,
 ) -> ToolRegistry:
     """Construct the Phase 3 tool set from application settings."""
     config = settings or get_settings()
+    if cache is not None:
+        configure_shared_tool_cache(cache)
     if config.use_fake_providers:
         return _build_fake_registry(config)
     registry = ToolRegistry()

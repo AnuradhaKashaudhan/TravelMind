@@ -62,3 +62,35 @@ def test_settings_reject_non_768_embedding_dimensions(
 
     with pytest.raises(ValidationError, match="must be 768"):
         Settings(_env_file=None)
+
+
+def test_settings_parse_agent_model_role_mapping(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Agent model roles parse from JSON and unspecified agents use simple."""
+    monkeypatch.setenv(
+        "AGENT_MODEL_ROLES",
+        '{"supervisor":"supervisor","custom":"itinerary"}',
+    )
+
+    settings = Settings(_env_file=None)
+
+    assert settings.model_role_for_agent("supervisor") == "supervisor"
+    assert settings.model_role_for_agent("custom") == "itinerary"
+    assert settings.model_role_for_agent("destination") == "simple"
+    assert settings.agent_max_concurrency == 4
+    assert settings.agent_task_retries == 2
+
+
+def test_settings_reject_invalid_agent_model_role_mapping(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Malformed JSON and unsupported model roles fail explicitly."""
+    monkeypatch.setenv("AGENT_MODEL_ROLES", '{"supervisor":"premium"}')
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
+
+    monkeypatch.setenv("AGENT_MODEL_ROLES", "{")
+    with pytest.raises(ValidationError, match="JSON object"):
+        Settings(_env_file=None)

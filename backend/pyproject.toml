@@ -16,8 +16,10 @@ dependencies = [
     "httpx>=0.27,<1",
     "langchain-core>=0.2,<2",
     "langgraph>=0.2,<2",
+    "langgraph-checkpoint-postgres>=2,<4",
     "openai>=1.30,<3",
     "pgvector>=0.3,<1",
+    "psycopg[binary,pool]>=3.2,<4",
     "pydantic-settings>=2.2,<3",
     "redis>=5,<7",
     "sqlalchemy[asyncio]>=2.0,<3",
@@ -43,6 +45,9 @@ include = ["app*"]
 "app.tools" = ["*.json"]
 
 [tool.pytest.ini_options]
+markers = [
+    "live: opt-in tests that call external providers",
+]
 asyncio_mode = "auto"
 pythonpath = ["."]
 testpaths = ["tests"]

@@ -675,4 +675,3 @@ def downgrade() -> None:
     postgresql.ENUM(name="trip_status").drop(op.get_bind(), checkfirst=True)
     postgresql.ENUM(name="user_role").drop(op.get_bind(), checkfirst=True)
     # ### end Alembic commands ###
-h

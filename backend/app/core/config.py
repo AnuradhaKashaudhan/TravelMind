@@ -1,9 +1,24 @@
 """Application settings loaded from environment variables and .env."""
 
+import json
 from functools import lru_cache
+from typing import Annotated, Literal, TypeAlias
 
-from pydantic import SecretStr, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, SecretStr, field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+AgentModelRole: TypeAlias = Literal["simple", "supervisor", "itinerary"]
+_DEFAULT_AGENT_MODEL_ROLES: dict[str, AgentModelRole] = {
+    "supervisor": "supervisor",
+    "itinerary": "itinerary",
+    "validation": "itinerary",
+    "destination": "simple",
+    "transport": "simple",
+    "accommodation": "simple",
+    "weather": "simple",
+    "activity": "simple",
+    "local_intelligence": "simple",
+}
 
 
 class Settings(BaseSettings):
@@ -30,6 +45,13 @@ class Settings(BaseSettings):
     simple_model: str | None = None
     supervisor_model: str | None = None
     itinerary_model: str | None = None
+    agent_model_roles: Annotated[dict[str, AgentModelRole], NoDecode] = Field(
+        default_factory=lambda: _DEFAULT_AGENT_MODEL_ROLES.copy()
+    )
+    agent_max_concurrency: int = Field(default=4, ge=1)
+    agent_task_timeout_s: float = Field(default=120.0, gt=0)
+    agent_task_retries: int = Field(default=2, ge=0)
+    agent_task_retry_base_s: float = Field(default=0.5, ge=0)
     llm_timeout_s: float = 45.0
     llm_retries: int = 2
     llm_retry_base_s: float = 0.5
@@ -56,6 +78,21 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     cors_origins: str = "http://localhost:3000"
 
+    @field_validator("agent_model_roles", mode="before")
+    @classmethod
+    def parse_agent_model_roles(cls, value: object) -> object:
+        """Parse the JSON environment mapping or use the safe defaults."""
+        if value is None or value == "":
+            return _DEFAULT_AGENT_MODEL_ROLES.copy()
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except json.JSONDecodeError as error:
+                raise ValueError("agent_model_roles must be a JSON object") from error
+        if not isinstance(value, dict):
+            raise ValueError("agent_model_roles must be a JSON object")
+        return value
+
     @field_validator("embedding_dimensions")
     @classmethod
     def validate_embedding_dimensions(cls, value: int) -> int:
@@ -72,6 +109,10 @@ class Settings(BaseSettings):
         return [
             origin.strip() for origin in self.cors_origins.split(",") if origin.strip()
         ]
+
+    def model_role_for_agent(self, agent_name: str) -> AgentModelRole:
+        """Return the configured model role, defaulting unknown agents to simple."""
+        return self.agent_model_roles.get(agent_name, "simple")
 
 
 @lru_cache

@@ -8,7 +8,9 @@ services:
       - ./backend:/app
     environment:
       DB_URL: ${DB_URL:-postgresql+asyncpg://travelmind:travelmind@postgres:5432/travelmind}
+      TEST_DATABASE_URL: ${TEST_DATABASE_URL:-postgresql+asyncpg://${POSTGRES_USER:-travelmind}:${POSTGRES_PASSWORD:-travelmind}@postgres-test:5432/travelmind_test}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
       FALLBACK_LLM_PROVIDER: ${FALLBACK_LLM_PROVIDER:-}
@@ -21,6 +23,11 @@ services:
       SIMPLE_MODEL: ${SIMPLE_MODEL:-}
       SUPERVISOR_MODEL: ${SUPERVISOR_MODEL:-}
       ITINERARY_MODEL: ${ITINERARY_MODEL:-}
+      AGENT_MODEL_ROLES: ${AGENT_MODEL_ROLES:-}
+      AGENT_MAX_CONCURRENCY: ${AGENT_MAX_CONCURRENCY:-4}
+      AGENT_TASK_TIMEOUT_S: ${AGENT_TASK_TIMEOUT_S:-120}
+      AGENT_TASK_RETRIES: ${AGENT_TASK_RETRIES:-2}
+      AGENT_TASK_RETRY_BASE_S: ${AGENT_TASK_RETRY_BASE_S:-0.5}
       LLM_TIMEOUT_S: ${LLM_TIMEOUT_S:-45}
       LLM_RETRIES: ${LLM_RETRIES:-2}
       LLM_RETRY_BASE_S: ${LLM_RETRY_BASE_S:-0.5}
@@ -85,8 +92,8 @@ services:
     profiles: ["test"]
     environment:
       POSTGRES_DB: travelmind_test
-      POSTGRES_USER: travelmind
-      POSTGRES_PASSWORD: travelmind
+      POSTGRES_USER: ${POSTGRES_USER:-travelmind}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-travelmind}
     ports:
       - "5433:5432"
     volumes:

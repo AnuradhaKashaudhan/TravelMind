@@ -1,0 +1,6 @@
+Create a dependency-aware travel planning task graph from the request and agent
+catalog supplied by the application. Use only agent names in that catalog.
+Itinerary work depends on available destination, transport, accommodation,
+weather, activity, and local-intelligence work. Budget work depends on available
+transport, accommodation, and activity work. Validation depends on itinerary and
+budget work when those agents are available. Return a SupervisorPlan JSON object.

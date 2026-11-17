@@ -14,10 +14,16 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.middleware.base import RequestResponseEndpoint
 
+from app.agents.registry import build_default_agent_registry
+from app.core.cache import RedisCache, close_cache
 from app.core.config import get_settings
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import bind_contextvars, clear_contextvars, configure_logging
-from app.db.session import engine
+from app.db.session import SessionFactory, engine
+from app.llm.factory import build_llm_router
+from app.orchestration.checkpoint import postgres_checkpointer
+from app.services.planning_service import PlanningService
+from app.tools.registry import build_default_tool_registry
 
 logger = structlog.get_logger(__name__)
 VERSION = "0.1.0"
@@ -37,20 +43,51 @@ async def check_redis(request: Request) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Connect infrastructure resources on startup and release them on shutdown."""
+    """Create shared orchestration resources and release them on shutdown."""
     settings = get_settings()
     redis_client = Redis.from_url(settings.redis_url, decode_responses=True)
-    app.state.redis = redis_client
+    cache = RedisCache(redis_client)
+    llm_router = None
+    tool_registry = None
     try:
         async with engine.connect() as connection:
             await connection.execute(text("SELECT 1"))
         await redis_client.ping()
-        logger.info("infrastructure_connected")
-        yield
+        llm_router = build_llm_router(settings)
+        tool_registry = build_default_tool_registry(settings, cache=cache)
+        app.state.redis = redis_client
+        app.state.cache = cache
+        app.state.llm_router = llm_router
+        app.state.tool_registry = tool_registry
+        app.state.agent_registry = build_default_agent_registry(
+            settings, llm_router, tool_registry
+        )
+        async with postgres_checkpointer(settings.db_url) as checkpointer:
+            app.state.checkpointer = checkpointer
+            app.state.planning_service = PlanningService(
+                SessionFactory,
+                llm_router,
+                tool_registry,
+                app.state.agent_registry,
+                checkpointer,
+                settings=settings,
+            )
+            logger.info("infrastructure_connected")
+            yield
     finally:
-        await redis_client.aclose()
-        await engine.dispose()
-        logger.info("infrastructure_disconnected")
+        try:
+            if tool_registry is not None:
+                await tool_registry.aclose()
+        finally:
+            try:
+                if llm_router is not None:
+                    await llm_router.aclose()
+            finally:
+                try:
+                    await close_cache(cache)
+                finally:
+                    await engine.dispose()
+                    logger.info("infrastructure_disconnected")
 
 
 def create_app() -> FastAPI:
