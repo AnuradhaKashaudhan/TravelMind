@@ -103,12 +103,105 @@ _FAKE_PLACES: dict[str, Place] = {
         rating=4.3,
         types=["restaurant", "tourist_attraction"],
     ),
+    "manali nature park": Place(
+        place_id="fake-nature-park",
+        name="Manali Nature Park",
+        address="Manali",
+        lat=32.2390,
+        lng=77.1850,
+        rating=4.4,
+        types=["park", "tourist_attraction"],
+    ),
+    "vashisht hot springs": Place(
+        place_id="fake-vashisht",
+        name="Vashisht Hot Springs",
+        address="Vashisht",
+        lat=32.2467,
+        lng=77.1750,
+        rating=4.5,
+        types=["tourist_attraction"],
+    ),
+    "manu temple": Place(
+        place_id="fake-manu",
+        name="Manu Temple",
+        address="Old Manali",
+        lat=32.2510,
+        lng=77.1800,
+        rating=4.5,
+        types=["place_of_worship", "tourist_attraction"],
+    ),
+    "jogini waterfall": Place(
+        place_id="fake-jogini",
+        name="Jogini Waterfall",
+        address="Vashisht",
+        lat=32.2580,
+        lng=77.1730,
+        rating=4.6,
+        types=["tourist_attraction"],
+    ),
+    "himalayan cafe": Place(
+        place_id="fake-cafe",
+        name="Himalayan Cafe",
+        address="Old Manali",
+        lat=32.2515,
+        lng=77.1780,
+        rating=4.4,
+        price_level="1",
+        types=["restaurant"],
+    ),
+    "river rafting point": Place(
+        place_id="fake-rafting",
+        name="River Rafting Point",
+        address="Manali",
+        lat=32.2100,
+        lng=77.1800,
+        rating=4.3,
+        types=["tourist_attraction"],
+    ),
+    "tibetan monastery": Place(
+        place_id="fake-monastery",
+        name="Tibetan Monastery",
+        address="Manali",
+        lat=32.2415,
+        lng=77.1880,
+        rating=4.5,
+        types=["place_of_worship", "tourist_attraction"],
+    ),
+    "old manali walk": Place(
+        place_id="fake-old-manali",
+        name="Old Manali Walk",
+        address="Old Manali",
+        lat=32.2500,
+        lng=77.1790,
+        rating=4.4,
+        types=["tourist_attraction"],
+    ),
+    "hotel snow valley": Place(
+        place_id="fake-snow-valley-budget",
+        name="Hotel Snow Valley",
+        address="Manali",
+        lat=32.2400,
+        lng=77.1870,
+        rating=4.0,
+        price_level="1",
+        types=["lodging"],
+    ),
 }
 
 
 def _fake_text_search(request: PlaceSearchInput) -> PlaceSearchOutput:
     """Return a known place only when the query names one."""
-    place = _FAKE_PLACES.get(request.query.casefold().strip())
+    query = request.query.casefold().strip()
+    place = _FAKE_PLACES.get(query)
+    if place is None and len(query.split()) > 1:
+        place = next(
+            (
+                candidate
+                for key, candidate in _FAKE_PLACES.items()
+                if key in query or query in key
+            ),
+            None,
+        )
     return PlaceSearchOutput(places=[place] if place is not None else [])
 
 
@@ -117,6 +210,39 @@ def _fake_place_name(place_id: str) -> str:
     return next(
         (place.name for place in _FAKE_PLACES.values() if place.place_id == place_id),
         "Verified Manali Place",
+    )
+
+
+def _fake_place_details(place_id: str) -> PlaceOutput:
+    """Return the matching fake record instead of flattening all places."""
+    place = next(
+        (
+            candidate
+            for candidate in _FAKE_PLACES.values()
+            if candidate.place_id == place_id
+        ),
+        None,
+    )
+    if place is None:
+        return PlaceOutput(
+            place_id=place_id,
+            name="Verified Manali Place",
+            address="Manali, Himachal Pradesh, India",
+            lat=32.2432,
+            lng=77.1892,
+            rating=4.5,
+            opening_hours=["08:00-20:00"],
+        )
+    return PlaceOutput(
+        place_id=place.place_id,
+        name=place.name,
+        address=place.address,
+        lat=place.lat,
+        lng=place.lng,
+        rating=place.rating,
+        price_level=place.price_level,
+        types=place.types,
+        opening_hours=["08:00-20:00"],
     )
 
 
@@ -169,15 +295,7 @@ def build_fake_tool_registry(settings: Settings) -> ToolRegistry:
             description="Return a realistic local fake place record.",
             input_schema=PlaceDetailsInput,
             output_schema=PlaceOutput,
-            responder=lambda request: PlaceOutput(
-                place_id=request.place_id,
-                name=_fake_place_name(request.place_id),
-                address="Manali, Himachal Pradesh, India",
-                lat=32.2432,
-                lng=77.1892,
-                rating=4.5,
-                opening_hours=["08:00-20:00"],
-            ),
+            responder=lambda request: _fake_place_details(request.place_id),
         ),
         FakeTool(
             name="verify_place",
@@ -252,8 +370,18 @@ def build_fake_tool_registry(settings: Settings) -> ToolRegistry:
                 origin=request.origin,
                 destination=request.destination,
                 mode=request.mode,
-                estimated_fare_min=1200,
-                estimated_fare_max=2800,
+                estimated_fare_min={
+                    "public_transport": 220,
+                    "train": 480,
+                    "taxi": 1800,
+                    "flight": 3200,
+                }.get(request.mode, 900),
+                estimated_fare_max={
+                    "public_transport": 420,
+                    "train": 800,
+                    "taxi": 2800,
+                    "flight": 5200,
+                }.get(request.mode, 1400),
                 currency="INR",
                 duration_s=10800,
                 is_estimate=True,

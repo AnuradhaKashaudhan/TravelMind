@@ -21,11 +21,18 @@ from app.llm.fake import FakeLLMClient
 from app.llm.router import LLMRouter
 from app.models.enums import AgentRunStatus, TripStatus
 from app.models.execution import AgentRun, TaskNode
-from app.models.trip import Trip
+from app.models.trip import (
+    BudgetCategory,
+    BudgetEntry,
+    ItineraryDay,
+    ItineraryItem,
+    Trip,
+    TripVersion,
+)
 from app.models.user import User
 from app.orchestration.agent_base import AgentContext, AgentRegistry
 from app.orchestration.checkpoint import postgres_checkpointer
-from app.orchestration.events import InMemoryEventBus
+from app.orchestration.events import EventType, InMemoryEventBus
 from app.orchestration.executor import WorkflowExecutor
 from app.orchestration.state import PlanningState
 from app.orchestration.testing import StubAgent
@@ -87,6 +94,9 @@ class _Phase5FakeLLM(FakeLLMClient):
                             "weather",
                             "activity",
                             "local_intelligence",
+                            "budget",
+                            "itinerary",
+                            "validation",
                         )
                     ]
                 }
@@ -273,10 +283,10 @@ async def test_planning_service_persists_runs_and_resumes_without_rerunning(
 
 
 @pytest.mark.asyncio
-async def test_phase5_six_agent_graph_persists_runs_nodes_duration_and_usage(
+async def test_phase6_nine_agent_graph_persists_runs_nodes_duration_and_usage(
     db_session: AsyncSession,
 ) -> None:
-    """The complete Phase 5 graph persists all six task nodes and child runs."""
+    """Nine-agent graph dependency, persistence, Trip.status, and event order."""
     database_url = os.getenv(
         "TEST_DATABASE_URL",
         "postgresql+asyncpg://travelmind:travelmind@localhost:5433/travelmind_test",
@@ -309,6 +319,7 @@ async def test_phase5_six_agent_graph_persists_runs_nodes_duration_and_usage(
     )
     tools = build_fake_tool_registry(settings)
     agents = build_default_agent_registry(settings, router, tools)
+    event_bus = InMemoryEventBus()
     service = PlanningService(
         session_factory,
         router,
@@ -316,6 +327,7 @@ async def test_phase5_six_agent_graph_persists_runs_nodes_duration_and_usage(
         agents,
         InMemorySaver(),
         settings=settings,
+        event_bus=event_bus,
     )
     try:
         run_info = await service.start_planning(
@@ -340,11 +352,81 @@ async def test_phase5_six_agent_graph_persists_runs_nodes_duration_and_usage(
                     )
                 ).all()
             )
-        assert {node.agent_name for node in nodes} == set(agents.names())
-        assert {child.agent_name for child in children} == set(agents.names())
+        phase6_names = {
+            "destination",
+            "transport",
+            "accommodation",
+            "weather",
+            "activity",
+            "local_intelligence",
+            "budget",
+            "itinerary",
+            "validation",
+        }
+        assert {node.agent_name for node in nodes} == phase6_names
+        assert {child.agent_name for child in children} == phase6_names
         assert all(node.status == AgentRunStatus.SUCCEEDED for node in nodes)
         assert all(child.duration_ms is not None for child in children)
         assert all(child.token_usage for child in children)
+        node_by_name = {node.agent_name: node for node in nodes}
+        assert all(
+            node_by_name[name].status == AgentRunStatus.SUCCEEDED
+            for name in phase6_names
+        )
+        async with session_factory() as session:
+            persisted_trip = await session.get(Trip, trip_id)
+            assert persisted_trip is not None
+            assert persisted_trip.status == TripStatus.PLANNED
+            version = (
+                await session.scalars(
+                    select(TripVersion).where(TripVersion.trip_id == trip_id)
+                )
+            ).first()
+            assert version is not None
+            assert (
+                await session.scalar(
+                    select(TripVersion.id).where(TripVersion.id == version.id)
+                )
+                is not None
+            )
+            assert (
+                await session.scalar(
+                    select(ItineraryDay.id).where(
+                        ItineraryDay.trip_version_id == version.id
+                    )
+                )
+                is not None
+            )
+            assert (
+                await session.scalar(
+                    select(ItineraryItem.id)
+                    .join(ItineraryDay)
+                    .where(ItineraryDay.trip_version_id == version.id)
+                )
+                is not None
+            )
+            assert (
+                await session.scalar(
+                    select(BudgetCategory.id).where(
+                        BudgetCategory.trip_version_id == version.id
+                    )
+                )
+                is not None
+            )
+            assert (
+                await session.scalar(
+                    select(BudgetEntry.id).where(
+                        BudgetEntry.trip_version_id == version.id
+                    )
+                )
+                is not None
+            )
+        event_types = [event.event_type for event in event_bus.events]
+        assert event_types.index(EventType.RUN_STARTED) < event_types.index(
+            EventType.RUN_COMPLETED
+        )
+        assert event_types.count(EventType.TASK_STARTED) == 9
+        assert event_types.count(EventType.TASK_SUCCEEDED) == 9
     finally:
         await tools.aclose()
         await router.aclose()

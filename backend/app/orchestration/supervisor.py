@@ -135,6 +135,13 @@ class SupervisorAgent:
                 for name in ("transport", "accommodation", "activity")
                 if name in names
             ]
+            if (
+                "destination" in names
+                and {"accommodation", "activity", "local_intelligence"} & names
+            ):
+                budget.depends_on.append("destination")
+                if "local_intelligence" in names:
+                    budget.depends_on.append("local_intelligence")
         validation = by_name.get("validation")
         if validation is not None:
             validation.depends_on = [
@@ -170,6 +177,14 @@ class SupervisorAgent:
                 required_agents = required_agents | {
                     "local_intelligence",
                 }
+            if task.agent_name == "budget" and (
+                "accommodation" in {item.agent_name for item in plan.tasks}
+                or "activity" in {item.agent_name for item in plan.tasks}
+                or "local_intelligence" in {item.agent_name for item in plan.tasks}
+            ):
+                required_agents = required_agents | {"destination"}
+                if "local_intelligence" in {item.agent_name for item in plan.tasks}:
+                    required_agents = required_agents | {"local_intelligence"}
             required_keys = {
                 upstream.task_key
                 for upstream in plan.tasks

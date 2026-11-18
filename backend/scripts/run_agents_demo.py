@@ -89,7 +89,12 @@ async def run(destination: str, fake: bool) -> None:
             for group in records:
                 for item in group:
                     if not item.get("verified", True):
-                        label = item.get("name") or item.get("title") or "unnamed"
+                        label = (
+                            item.get("name")
+                            or item.get("title")
+                            or item.get("mode")
+                            or "unnamed"
+                        )
                         note = item.get("verification_note") or "unverified"
                         print(f"  unverified: {label} - {note}")
     finally:

@@ -101,3 +101,17 @@ provides local infrastructure.
   `is_estimate=true` plus a source; they are not live fares.
 - Tool or LLM failures degrade to a valid `AgentResult` with errors and
   confidence/source metadata so the executor can persist and recover them.
+
+## Phase 6 planning conventions
+
+- Budget calculations use `Decimal` and deterministic Python algorithms; LLMs
+  may write suggestions but must not calculate or decide budget totals.
+- Itinerary generation schedules only grounded places by default, preserves
+  provenance and estimate flags, and uses deterministic geographic clustering,
+  ordering, time windows, meal slots, and weather suitability.
+- Validation pass/fail is deterministic over typed itinerary, budget, weather,
+  accessibility, timing, and consistency data. LLMs may only phrase findings.
+- Validation repairs are targeted and bounded to two iterations. If issues remain,
+  finish with `completed_with_issues`; never restart the complete workflow.
+- Final planning results are persisted as a new system-created `TripVersion`
+  with itinerary rows, budget rows, and the validation report snapshot.

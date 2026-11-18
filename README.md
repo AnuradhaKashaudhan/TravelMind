@@ -1,9 +1,8 @@
 # TravelMind
 
 TravelMind is an autonomous multi-agent AI travel-planning platform. This
-repository is being built in ten phases; Phases 1-3 are complete, and
-Phase 4 (LangGraph orchestration core) is complete, and Phase 5 specialist
-research agents are in progress.
+repository is being built in ten phases; Phases 1-5 are complete, and
+Phase 6 planning workflows are in progress.
 
 ## Architecture
 
@@ -15,7 +14,7 @@ flowchart LR
     API --> PostgreSQL[(PostgreSQL + pgvector)]
     API --> Redis[(Redis)]
     Services --> Workflow[LangGraph orchestration<br/>Phase 4]
-    Workflow --> Agents[Travel agents<br/>Phase 5]
+    Workflow --> Agents[Travel agents<br/>Phases 5-6]
     Agents --> Integrations[Tools and LLM integrations<br/>Phase 3]
     Integrations --> Providers[Gemini, OpenAI-compatible,<br/>maps, weather]
 ```
@@ -89,8 +88,8 @@ Use `make up`, `make down`, `make logs`, `make migrate`, `make test`,
 - `app.orchestration` extracts typed requirements, pauses for missing trip
   details, validates supervisor task graphs, and executes independent tasks
   concurrently while respecting dependencies.
-- The six Phase 5 specialists are registered through `AgentRegistry`; Phase 6
-  budget, itinerary, and validation agents are intentionally not included yet.
+- The six Phase 5 specialists and the Phase 6 budget, itinerary, and validation
+  agents are registered through `AgentRegistry`.
 - Graph checkpoints use `AsyncPostgresSaver` on the configured PostgreSQL
   database. Task transitions and successful results are also persisted, so
   resumed work reconciles completed tasks instead of re-running them.
@@ -117,7 +116,13 @@ Run the isolated tests and no-network orchestration demo with:
 ```powershell
 make test
 docker compose exec backend python scripts/run_plan_demo.py
+docker compose exec backend python scripts/run_full_plan_demo.py
 ```
+
+Phase 6 uses deterministic Decimal budget math, deterministic itinerary
+clustering/scheduling, and deterministic validation. LLM calls are limited to
+optional wording; a validation repair loop is bounded to two iterations and
+only regenerates affected planning work.
 
 Run unit tests, lint, and type checking from `backend`:
 
@@ -139,8 +144,8 @@ no-network behavior, set `USE_FAKE_PROVIDERS=true`.
 - [x] Phase 2 — Data models and schemas
 - [x] Phase 3 — LLM abstraction, external tools, caching
 - [x] Phase 4 — Agent orchestration
-- [ ] Phase 5 — Agents (in progress)
-- [ ] Phase 6 — Planning workflows
+- [x] Phase 5 — Agents
+- [ ] Phase 6 — Planning workflows (in progress)
 - [ ] Phase 7 — API capabilities
 - [ ] Phase 8 — Reliability and observability
 - [ ] Phase 9 — Frontend

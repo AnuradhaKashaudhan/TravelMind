@@ -1,7 +1,17 @@
 # TravelMind Project State Audit
 
-**Audit date:** 2026-11-15
-**Scope:** Current repository state, with Phases 1–3 assessed against the supplied phase plan. Source, migrations, tests, Compose configuration, and Git state were inspected. No existing project file was edited.
+**Audit date:** 2026-11-17
+**Scope:** Current repository state through Phase 6 implementation. This document
+retains the original Phase 1–3 audit detail below and adds the current workflow
+status.
+
+## Current phase status
+
+- Phases 1–5 are complete and committed.
+- Phase 6 is in progress: deterministic Decimal budget optimization,
+  itinerary generation, validation, bounded repair, final TripVersion
+  persistence, evaluation metrics, and the full-plan fake demo are implemented.
+- Phase 7 API routes/WebSockets and Phase 8 memory/replanning remain out of scope.
 
 ## 1. Project tree
 

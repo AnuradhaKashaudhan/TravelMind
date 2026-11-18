@@ -1,0 +1,23 @@
+{
+  "budget": {
+    "transportation": "0.30",
+    "accommodation": "0.30",
+    "food": "0.20",
+    "activities": "0.15",
+    "miscellaneous": "0.05"
+  },
+  "standard": {
+    "transportation": "0.25",
+    "accommodation": "0.35",
+    "food": "0.20",
+    "activities": "0.15",
+    "miscellaneous": "0.05"
+  },
+  "luxury": {
+    "transportation": "0.20",
+    "accommodation": "0.45",
+    "food": "0.20",
+    "activities": "0.10",
+    "miscellaneous": "0.05"
+  }
+}

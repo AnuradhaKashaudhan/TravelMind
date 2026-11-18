@@ -626,6 +626,8 @@ async def test_supervisor_enforces_registered_domain_dependencies() -> None:
         "transport-task",
         "stay-task",
         "activity-task",
+        "destination-task",
+        "local-task",
     }
     assert set(tasks["validation"].depends_on) == {"itinerary-task", "budget-task"}
 

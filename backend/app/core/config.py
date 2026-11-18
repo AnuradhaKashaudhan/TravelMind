@@ -10,14 +10,15 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 AgentModelRole: TypeAlias = Literal["simple", "supervisor", "itinerary"]
 _DEFAULT_AGENT_MODEL_ROLES: dict[str, AgentModelRole] = {
     "supervisor": "supervisor",
-    "itinerary": "itinerary",
-    "validation": "itinerary",
     "destination": "simple",
     "transport": "simple",
     "accommodation": "simple",
     "weather": "simple",
     "activity": "simple",
     "local_intelligence": "simple",
+    "budget": "simple",
+    "validation": "simple",
+    "itinerary": "itinerary",
 }
 
 
@@ -71,12 +72,20 @@ class Settings(BaseSettings):
     provider_rate_limit_burst: int = 10
     circuit_breaker_failure_threshold: int = 5
     circuit_breaker_reset_s: float = 30.0
+    grounding_concurrency: int = Field(default=4, ge=1)
     fare_config_path: str = "app/tools/fare_estimates.json"
+    budget_allocation_config_path: str = "app/tools/budget_allocations.json"
     openweather_base_url: str = "https://api.openweathermap.org/data/2.5"
     jwt_secret: SecretStr = SecretStr("development-only-change-me")
     environment: str = "development"
     log_level: str = "INFO"
     cors_origins: str = "http://localhost:3000"
+
+    @field_validator("fallback_llm_provider", mode="before")
+    @classmethod
+    def empty_fallback_is_none(cls, value: object) -> object:
+        """Treat an empty Compose fallback setting as no fallback provider."""
+        return None if value is None or value == "" else value
 
     @field_validator("agent_model_roles", mode="before")
     @classmethod

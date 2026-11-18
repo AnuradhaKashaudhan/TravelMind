@@ -158,6 +158,9 @@ class DestinationResearchOutput(APIModel):
     confidence: float = Field(default=0, ge=0, le=1)
 
 
+VerificationStatus = Literal["verified", "not_found", "unavailable", "skipped"]
+
+
 class TransportOption(APIModel):
     """A candidate transportation option."""
 
@@ -173,6 +176,7 @@ class TransportOption(APIModel):
     source: str = "heuristic"
     verified: bool = False
     verification_note: str | None = None
+    verification_status: VerificationStatus = "skipped"
 
 
 class TransportOutput(APIModel):
@@ -207,6 +211,7 @@ class AccommodationOption(APIModel):
     verification_note: str | None = None
     source: str = "heuristic"
     is_estimate: bool = True
+    verification_status: VerificationStatus = "skipped"
 
 
 class AccommodationOutput(APIModel):
@@ -262,6 +267,7 @@ class ActivityOption(APIModel):
     verification_note: str | None = None
     source: str = "llm"
     is_estimate: bool = True
+    verification_status: VerificationStatus = "skipped"
 
 
 class ActivityOutput(APIModel):
@@ -309,6 +315,11 @@ class BudgetReport(APIModel):
     total_estimated: Decimal = Field(ge=0)
     over_budget: bool
     suggestions: list[str] = Field(default_factory=list)
+    selected: dict[BudgetCategoryType, list[str]] = Field(default_factory=dict)
+    savings_achieved: Decimal = Field(default=Decimal("0"), ge=0)
+    breakdown: dict[BudgetCategoryType, list[str]] = Field(default_factory=dict)
+    is_estimate: bool = True
+    what_if: str | None = None
 
     @field_validator("currency")
     @classmethod
@@ -331,6 +342,13 @@ class ItineraryItemPlan(APIModel):
     longitude: float | None = Field(default=None, ge=-180, le=180)
     estimated_cost: Decimal | None = Field(default=None, ge=0)
     currency: str | None = None
+    source_agent: str | None = None
+    verified: bool = False
+    tentative: bool = False
+    is_estimate: bool = True
+    weather_sensitive: bool = False
+    opening_hours: list[str] | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class ItineraryDayPlan(APIModel):
@@ -355,6 +373,8 @@ class ValidationIssue(APIModel):
     type: Literal["budget", "schedule", "distance", "timing", "consistency"]
     message: str
     affected_item_ids: list[UUID] = Field(default_factory=list)
+    suggested_fix: str | None = None
+    auto_fixable: bool = False
 
 
 class ValidationReport(APIModel):

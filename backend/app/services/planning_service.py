@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 from datetime import UTC, datetime
-from typing import Any, TypeAlias
+from typing import Any, TypeAlias, TypeVar
 from uuid import UUID
 
 from langchain_core.runnables import RunnableConfig
@@ -20,6 +20,7 @@ from app.db.repositories.agent_runs import AgentRunRepository
 from app.db.repositories.approvals import ApprovalRequestRepository
 from app.db.repositories.task_nodes import TaskNodeRepository
 from app.db.repositories.trips import TripRepository
+from app.db.repositories.versions import TripVersionRepository
 from app.llm.router import LLMRouter
 from app.models.enums import (
     AgentRunStatus,
@@ -27,6 +28,7 @@ from app.models.enums import (
     TripStatus,
 )
 from app.models.execution import AgentRun
+from app.models.trip import BudgetCategory, BudgetEntry, ItineraryDay, ItineraryItem
 from app.orchestration.agent_base import AgentRegistry
 from app.orchestration.approvals import ApprovalGate, ApprovalTicket
 from app.orchestration.events import EventBus, InMemoryEventBus
@@ -36,11 +38,16 @@ from app.orchestration.state import PlanningState, TaskExecutionState
 from app.orchestration.supervisor import SupervisorAgent
 from app.schemas.agent_io import (
     AgentResult,
+    BudgetReport,
+    ItineraryPlan,
     SupervisorPlan,
     TaskSpec,
     TripRequirements,
+    ValidationReport,
 )
 from app.tools.registry import ToolRegistry
+
+ModelT = TypeVar("ModelT", bound=BaseModel)
 
 
 class PlanningRunInfo(BaseModel):
@@ -353,6 +360,7 @@ class PlanningService(TaskPersistence):
         }
         await self._save_root_output(run_id, serializable_state, interrupted)
         if not interrupted:
+            await self._persist_final_version(run_id, serializable_state)
             task_states = state.get("task_states", {})
             has_failure = any(
                 task_state.get("status")
@@ -362,6 +370,83 @@ class PlanningService(TaskPersistence):
             status = AgentRunStatus.FAILED if has_failure else AgentRunStatus.SUCCEEDED
             await self._set_run_status(run_id, status)
         return await self.get_run_status(run_id)
+
+    async def _persist_final_version(self, run_id: UUID, state: dict[str, Any]) -> None:
+        """Persist the final typed budget, itinerary, and validation snapshot."""
+        results = state.get("results", {})
+        if not isinstance(results, dict):
+            return
+        itinerary = _result_model(results.get("itinerary"), ItineraryPlan)
+        budget = _result_model(results.get("budget"), BudgetReport)
+        validation = _result_model(results.get("validation"), ValidationReport)
+        if itinerary is None and budget is None:
+            return
+        async with self.session_factory() as session:
+            async with session.begin():
+                root = await AgentRunRepository(session).get(run_id)
+                if root is None:
+                    raise ValueError(f"Planning run does not exist: {run_id}")
+                if root.output and root.output.get("final_version_id"):
+                    return
+                version = await TripVersionRepository(session).create_next_version(
+                    root.trip_id,
+                    itinerary=itinerary.model_dump(mode="json") if itinerary else {},
+                    budget_snapshot={
+                        "budget": budget.model_dump(mode="json") if budget else {},
+                        "validation": (
+                            validation.model_dump(mode="json") if validation else {}
+                        ),
+                    },
+                    created_by="system",
+                )
+                if budget:
+                    for allocation in budget.allocations:
+                        session.add(
+                            BudgetCategory(
+                                trip_version_id=version.id,
+                                category=allocation.category,
+                                allocated_amount=allocation.allocated_amount,
+                            )
+                        )
+                        session.add(
+                            BudgetEntry(
+                                trip_version_id=version.id,
+                                category=allocation.category,
+                                estimated_amount=allocation.estimated_amount,
+                            )
+                        )
+                if itinerary:
+                    for day_plan in itinerary.days:
+                        day = ItineraryDay(
+                            trip_version_id=version.id,
+                            day_number=day_plan.day_number,
+                            date=day_plan.date,
+                            summary=day_plan.summary,
+                        )
+                        session.add(day)
+                        await session.flush()
+                        for index, item in enumerate(day_plan.items):
+                            session.add(
+                                ItineraryItem(
+                                    day_id=day.id,
+                                    order_index=index,
+                                    item_type=item.item_type,
+                                    title=item.title,
+                                    description=item.description,
+                                    start_time=item.start_time,
+                                    end_time=item.end_time,
+                                    place_id=item.place_id,
+                                    latitude=item.latitude,
+                                    longitude=item.longitude,
+                                    estimated_cost=item.estimated_cost,
+                                    currency=item.currency,
+                                    metadata_=item.metadata,
+                                )
+                            )
+                root.output = {
+                    **(root.output or {}),
+                    "final_version_id": str(version.id),
+                }
 
     def _build_graph(
         self,
@@ -551,3 +636,12 @@ def _requirements(value: object) -> TripRequirements | None:
 def _plan(value: object) -> SupervisorPlan | None:
     """Restore a supervisor plan from serialized graph state."""
     return SupervisorPlan.model_validate(value) if isinstance(value, dict) else None
+
+
+def _result_model(value: object, model: type[ModelT]) -> ModelT | None:
+    """Validate an agent envelope's typed data when it is available."""
+    if isinstance(value, dict):
+        value = AgentResult.model_validate(value)
+    if not isinstance(value, AgentResult) or value.data is None:
+        return None
+    return model.model_validate(value.data)

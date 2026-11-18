@@ -25,6 +25,11 @@ class EventType(StrEnum):
     APPROVAL_NEEDED = "approval_needed"
     RUN_COMPLETED = "run_completed"
     RUN_FAILED = "run_failed"
+    VALIDATION_STARTED = "validation_started"
+    VALIDATION_FAILED = "validation_failed"
+    REPAIR_STARTED = "repair_started"
+    REPAIR_COMPLETED = "repair_completed"
+    VALIDATION_PASSED = "validation_passed"
 
 
 class WorkflowEvent(BaseModel):

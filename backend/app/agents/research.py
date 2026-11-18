@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import date
 from decimal import Decimal
 from typing import Protocol
@@ -107,42 +108,41 @@ class TransportAgent(ResearchAgent[TransportOutput]):
             output: TransportOutput = await self.generate(context, requirements)
         except Exception:
             output = TransportOutput()
-        options: list[TransportOption] = []
-        for mode in ("flight", "train", "bus", "car", "taxi"):
+        modes = ("flight", "train", "bus", "car", "taxi")
+        fare_semaphore = asyncio.Semaphore(3)
+
+        async def estimate(mode: str) -> TransportOption:
+            """Estimate one mode while bounding concurrent provider calls."""
             fare_mode = (
                 mode if mode in {"flight", "train", "taxi"} else "public_transport"
             )
-            fare = await self.call_tool(
-                context,
-                "estimate_transport",
-                {
-                    "origin": origin,
-                    "destination": destination,
-                    "mode": fare_mode,
-                    "distance_m": max(distance, 1),
-                },
-            )
-            options.append(
-                TransportOption(
-                    mode=mode,
-                    description=f"{mode.title()} estimate; not a live fare.",
-                    duration_minutes=getattr(fare, "duration_s", duration) // 60,
-                    distance_km=distance,
-                    estimated_cost_min=Decimal(
-                        str(getattr(fare, "estimated_fare_min", 0))
-                    ),
-                    estimated_cost_max=Decimal(
-                        str(getattr(fare, "estimated_fare_max", 0))
-                    ),
-                    currency=getattr(fare, "currency", requirements.currency),
-                    is_estimate=True,
-                    source=getattr(fare, "source", "heuristic"),
-                    verified=False,
-                    verification_note=(
-                        "Estimate only; confirm live availability and price."
-                    ),
+            async with fare_semaphore:
+                fare = await self.call_tool(
+                    context,
+                    "estimate_transport",
+                    {
+                        "origin": origin,
+                        "destination": destination,
+                        "mode": fare_mode,
+                        "distance_m": max(distance, 1),
+                    },
                 )
+            return TransportOption(
+                mode=mode,
+                description=f"{mode.title()} estimate; not a live fare.",
+                duration_minutes=getattr(fare, "duration_s", duration) // 60,
+                distance_km=distance,
+                estimated_cost_min=Decimal(str(getattr(fare, "estimated_fare_min", 0))),
+                estimated_cost_max=Decimal(str(getattr(fare, "estimated_fare_max", 0))),
+                currency=getattr(fare, "currency", requirements.currency),
+                is_estimate=True,
+                source=getattr(fare, "source", "heuristic"),
+                verified=False,
+                verification_status="skipped",
+                verification_note="Estimate only; confirm live availability and price.",
             )
+
+        options = list(await asyncio.gather(*(estimate(mode) for mode in modes)))
         selected = output.recommended_mode or (
             "train" if requirements.travel_style == "comfort" else "bus"
         )
@@ -270,19 +270,32 @@ class WeatherAgent(ResearchAgent[WeatherOutput]):
                 },
             )
             forecast = result if isinstance(result, ForecastOutput) else None
+        expected_dates = _date_range(requirements.start_date, requirements.end_date)
+        forecast_by_date = {
+            item.date: item for item in (forecast.daily if forecast else [])
+        }
         days = [
-            WeatherDay(
-                date=item.date,
-                summary=f"{item.temp_min_c:.0f}-{item.temp_max_c:.0f}°C",
-                temperature_min=item.temp_min_c,
-                temperature_max=item.temp_max_c,
-                precipitation_probability=item.precipitation_probability,
-                outdoor_suitability=max(
-                    0.0, 1.0 - item.precipitation_probability / 100
-                ),
-                is_estimate=False,
+            (
+                WeatherDay(
+                    date=item.date,
+                    summary=f"{item.temp_min_c:.0f}-{item.temp_max_c:.0f}°C",
+                    temperature_min=item.temp_min_c,
+                    temperature_max=item.temp_max_c,
+                    precipitation_probability=item.precipitation_probability,
+                    outdoor_suitability=max(
+                        0.0, 1.0 - item.precipitation_probability / 100
+                    ),
+                    is_estimate=False,
+                )
+                if (item := forecast_by_date.get(day)) is not None
+                else WeatherDay(
+                    date=day,
+                    summary="Climatological note; forecast range exceeded.",
+                    outdoor_suitability=0.5,
+                    is_estimate=True,
+                )
             )
-            for item in (forecast.daily if forecast else [])
+            for day in expected_dates
         ]
         if days and forecast is not None:
             output = output.model_copy(
@@ -293,7 +306,16 @@ class WeatherAgent(ResearchAgent[WeatherOutput]):
                 }
             )
             return self.envelope(
-                output, sources=["geocode", forecast.provider], confidence=0.9
+                output,
+                sources=(
+                    ["geocode", forecast.provider]
+                    + (
+                        ["llm-climatology"]
+                        if any(day.is_estimate for day in days)
+                        else []
+                    )
+                ),
+                confidence=0.9 if not any(day.is_estimate for day in days) else 0.6,
             )
         output = output.model_copy(
             update={
